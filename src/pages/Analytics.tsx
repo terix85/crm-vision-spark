@@ -1,48 +1,149 @@
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, Users, DollarSign, Target, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const Analytics = () => {
-  // Mock data for charts
-  const revenueData = [
-    { month: 'Jan', revenue: 45000, deals: 12 },
-    { month: 'Fév', revenue: 52000, deals: 15 },
-    { month: 'Mar', revenue: 48000, deals: 13 },
-    { month: 'Avr', revenue: 61000, deals: 18 },
-    { month: 'Mai', revenue: 55000, deals: 16 },
-    { month: 'Juin', revenue: 67000, deals: 20 },
-  ];
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalRevenue: 0,
+    totalDeals: 0,
+    totalCustomers: 0,
+    conversionRate: 0,
+  });
 
-  const dealsByStage = [
-    { name: 'Prospect', value: 35, color: '#8B5CF6' },
-    { name: 'Qualification', value: 25, color: '#F59E0B' },
-    { name: 'Proposition', value: 20, color: '#3B82F6' },
-    { name: 'Négociation', value: 15, color: '#10B981' },
-    { name: 'Gagné', value: 5, color: '#22C55E' },
-  ];
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
 
-  const topClients = [
-    { name: 'TechCorp', value: 125000 },
-    { name: 'StartupXYZ', value: 98000 },
-    { name: 'MegaSoft', value: 87000 },
-    { name: 'InnovCorp', value: 72000 },
-    { name: 'FinanceApp', value: 65000 },
-  ];
+  const fetchAnalytics = async () => {
+    try {
+      // Fetch sales data for revenue by month
+      const { data: salesData, error: salesError } = await supabase
+        .from("sales")
+        .select("sale_date, total_price");
 
-  const conversionData = [
-    { stage: 'Prospect', rate: 80 },
-    { stage: 'Qualification', rate: 65 },
-    { stage: 'Proposition', rate: 50 },
-    { stage: 'Négociation', rate: 75 },
-    { stage: 'Clôture', rate: 60 },
-  ];
+      if (salesError) throw salesError;
+
+      // Group sales by month
+      const monthlyRevenue = salesData?.reduce((acc: any, sale) => {
+        const month = new Date(sale.sale_date).toLocaleDateString("fr-FR", {
+          month: "short",
+        });
+        if (!acc[month]) {
+          acc[month] = { month, revenue: 0, deals: 0 };
+        }
+        acc[month].revenue += Number(sale.total_price);
+        acc[month].deals += 1;
+        return acc;
+      }, {});
+
+      setRevenueData(Object.values(monthlyRevenue || {}));
+
+      // Fetch top products
+      const { data: productSales, error: productError } = await supabase
+        .from("sales")
+        .select(`
+          product_id,
+          total_price,
+          quantity,
+          products(name, category)
+        `);
+
+      if (productError) throw productError;
+
+      // Group by product
+      const productStats = productSales?.reduce((acc: any, sale) => {
+        const productName = sale.products?.name || "Unknown";
+        if (!acc[productName]) {
+          acc[productName] = { name: productName, value: 0, quantity: 0 };
+        }
+        acc[productName].value += Number(sale.total_price);
+        acc[productName].quantity += sale.quantity;
+        return acc;
+      }, {});
+
+      const topProductsList = Object.values(productStats || {})
+        .sort((a: any, b: any) => b.value - a.value)
+        .slice(0, 5);
+
+      setTopProducts(topProductsList);
+
+      // Group by category
+      const categoryStats = productSales?.reduce((acc: any, sale) => {
+        const category = sale.products?.category || "Autre";
+        if (!acc[category]) {
+          acc[category] = { name: category, value: 0 };
+        }
+        acc[category].value += Number(sale.total_price);
+        return acc;
+      }, {});
+
+      const categoryList = Object.values(categoryStats || {}).map((item: any, index) => ({
+        ...item,
+        color: ["#8B5CF6", "#F59E0B", "#3B82F6", "#10B981", "#22C55E"][index % 5],
+      }));
+
+      setCategoryData(categoryList);
+
+      // Calculate overall stats
+      const totalRevenue = salesData?.reduce((sum, sale) => sum + Number(sale.total_price), 0) || 0;
+      
+      const { data: dealsData } = await supabase
+        .from("deals")
+        .select("id, stage");
+      
+      const { data: customersData } = await supabase
+        .from("customers")
+        .select("id");
+
+      const totalDeals = dealsData?.length || 0;
+      const wonDeals = dealsData?.filter(d => d.stage === "gagne").length || 0;
+      const conversionRate = totalDeals > 0 ? (wonDeals / totalDeals) * 100 : 0;
+
+      setStats({
+        totalRevenue,
+        totalDeals,
+        totalCustomers: customersData?.length || 0,
+        conversionRate,
+      });
+    } catch (error) {
+      console.error("Error fetching analytics:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les analytics",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const exportToPDF = () => {
-    console.log('Export PDF functionality to be implemented');
+    toast({
+      title: "Export en cours",
+      description: "Fonctionnalité à venir",
+    });
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-full">
+          <div className="text-lg text-muted-foreground">Chargement...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -66,8 +167,9 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Revenu Total</p>
-                <p className="text-2xl font-bold text-foreground">328K€</p>
-                <p className="text-xs text-success mt-1">+12.5% vs mois dernier</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {stats.totalRevenue.toLocaleString("fr-FR")}€
+                </p>
               </div>
               <DollarSign className="h-8 w-8 text-success" />
             </div>
@@ -77,8 +179,7 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Opportunités</p>
-                <p className="text-2xl font-bold text-foreground">94</p>
-                <p className="text-xs text-info mt-1">+8 ce mois</p>
+                <p className="text-2xl font-bold text-foreground">{stats.totalDeals}</p>
               </div>
               <Target className="h-8 w-8 text-info" />
             </div>
@@ -88,8 +189,7 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Clients</p>
-                <p className="text-2xl font-bold text-foreground">156</p>
-                <p className="text-xs text-primary mt-1">+15 nouveaux</p>
+                <p className="text-2xl font-bold text-foreground">{stats.totalCustomers}</p>
               </div>
               <Users className="h-8 w-8 text-primary" />
             </div>
@@ -99,8 +199,9 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Taux de conversion</p>
-                <p className="text-2xl font-bold text-foreground">64%</p>
-                <p className="text-xs text-warning mt-1">-2.3% vs mois dernier</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {stats.conversionRate.toFixed(1)}%
+                </p>
               </div>
               <TrendingUp className="h-8 w-8 text-warning" />
             </div>
@@ -133,55 +234,42 @@ const Analytics = () => {
           </TabsContent>
 
           <TabsContent value="pipeline">
-            <div className="grid grid-cols-2 gap-6">
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Distribution par Étape</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={dealsByStage}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={120}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {dealsByStage.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Taux de Conversion par Étape</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                  <BarChart data={conversionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="stage" />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="rate" fill="hsl(var(--primary))" name="Taux (%)" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-            </div>
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Performance par Catégorie</h3>
+              <ResponsiveContainer width="100%" height={400}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${name}: ${value.toLocaleString("fr-FR")}€`}
+                    outerRadius={120}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </Card>
           </TabsContent>
 
           <TabsContent value="clients">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Top 5 Clients par Revenu</h3>
+              <h3 className="text-lg font-semibold mb-4">Top 5 Produits les Plus Vendus</h3>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={topClients} layout="vertical">
+                <BarChart data={topProducts} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" />
+                  <YAxis dataKey="name" type="category" width={150} />
                   <Tooltip />
+                  <Legend />
                   <Bar dataKey="value" fill="hsl(var(--success))" name="Revenu (€)" />
+                  <Bar dataKey="quantity" fill="hsl(var(--primary))" name="Quantité" />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
@@ -189,15 +277,16 @@ const Analytics = () => {
 
           <TabsContent value="conversion">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Funnel de Conversion</h3>
+              <h3 className="text-lg font-semibold mb-4">Évolution du Revenu Mensuel</h3>
               <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={conversionData}>
+                <BarChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="stage" />
+                  <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="rate" fill="hsl(var(--info))" name="Taux de conversion (%)" />
+                  <Bar dataKey="revenue" fill="hsl(var(--success))" name="Revenu (€)" />
+                  <Bar dataKey="deals" fill="hsl(var(--primary))" name="Nombre de ventes" />
                 </BarChart>
               </ResponsiveContainer>
             </Card>

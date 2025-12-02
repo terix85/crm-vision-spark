@@ -14,6 +14,7 @@ import Deals from "./pages/Deals";
 import Analytics from "./pages/Analytics";
 import Companies from "./pages/Companies";
 import Products from "./pages/Products";
+import ProductDetails from "./pages/ProductDetails";
 import Settings from "./pages/Settings";
 import AIAssistant from "./pages/AIAssistant";
 import Terms from "./pages/Terms";
@@ -40,6 +41,7 @@ const App = () => (
           <Route path="/companies" element={<Companies />} />
           <Route path="/deals" element={<Deals />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/products/:id" element={<ProductDetails />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ai-assistant" element={<AIAssistant />} />

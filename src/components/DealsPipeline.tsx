@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -10,6 +10,11 @@ import {
 } from "@dnd-kit/core";
 import { PipelineColumn } from "@/components/PipelineColumn";
 import { DealCard } from "@/components/DealCard";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import { DealDialog } from "@/components/DealDialog";
 
 export interface Deal {
   id: string;
@@ -22,69 +27,6 @@ export interface Deal {
   closeDate: string;
 }
 
-const initialDeals: Deal[] = [
-  {
-    id: "1",
-    title: "Migration Cloud",
-    company: "TechCorp",
-    value: 45000,
-    contact: "Marie Dubois",
-    stage: "prospect",
-    probability: 20,
-    closeDate: "2024-03-15",
-  },
-  {
-    id: "2",
-    title: "CRM Enterprise",
-    company: "StartupXYZ",
-    value: 78000,
-    contact: "Pierre Martin",
-    stage: "qualification",
-    probability: 40,
-    closeDate: "2024-02-28",
-  },
-  {
-    id: "3",
-    title: "Formation équipe",
-    company: "InnovCorp",
-    value: 12000,
-    contact: "Sophie Bernard",
-    stage: "proposition",
-    probability: 60,
-    closeDate: "2024-02-15",
-  },
-  {
-    id: "4",
-    title: "Consulting IT",
-    company: "MegaSoft",
-    value: 95000,
-    contact: "Luc Moreau",
-    stage: "negociation",
-    probability: 80,
-    closeDate: "2024-02-10",
-  },
-  {
-    id: "5",
-    title: "Site Web E-commerce",
-    company: "ShopOnline",
-    value: 32000,
-    contact: "Emma Laurent",
-    stage: "prospect",
-    probability: 15,
-    closeDate: "2024-04-01",
-  },
-  {
-    id: "6",
-    title: "App Mobile",
-    company: "FinanceApp",
-    value: 125000,
-    contact: "Thomas Petit",
-    stage: "qualification",
-    probability: 35,
-    closeDate: "2024-03-20",
-  },
-];
-
 const stages = [
   { id: "prospect", name: "Prospect", color: "bg-info/10 border-info/20" },
   { id: "qualification", name: "Qualification", color: "bg-warning/10 border-warning/20" },
@@ -95,8 +37,51 @@ const stages = [
 ];
 
 export function DealsPipeline() {
-  const [deals, setDeals] = useState<Deal[]>(initialDeals);
+  const { toast } = useToast();
+  const [deals, setDeals] = useState<Deal[]>([]);
   const [activeDeal, setActiveDeal] = useState<Deal | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  useEffect(() => {
+    fetchDeals();
+  }, []);
+
+  const fetchDeals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("deals")
+        .select(`
+          *,
+          customers(name)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const formattedDeals: Deal[] = (data || []).map((deal) => ({
+        id: deal.id,
+        title: deal.title,
+        company: deal.customers?.name || "N/A",
+        value: Number(deal.value),
+        contact: deal.contact || "",
+        stage: deal.stage,
+        probability: deal.probability || 0,
+        closeDate: deal.close_date || "",
+      }));
+
+      setDeals(formattedDeals);
+    } catch (error) {
+      console.error("Error fetching deals:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les opportunités",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -113,7 +98,7 @@ export function DealsPipeline() {
     }
   };
 
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     
     if (!over) {
@@ -124,11 +109,36 @@ export function DealsPipeline() {
     const dealId = active.id as string;
     const newStage = over.id as string;
 
+    // Optimistic update
     setDeals((prevDeals) =>
       prevDeals.map((deal) =>
         deal.id === dealId ? { ...deal, stage: newStage } : deal
       )
     );
+
+    // Update in database
+    try {
+      const { error } = await supabase
+        .from("deals")
+        .update({ stage: newStage })
+        .eq("id", dealId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Succès",
+        description: "Opportunité mise à jour",
+      });
+    } catch (error) {
+      console.error("Error updating deal:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour l'opportunité",
+        variant: "destructive",
+      });
+      // Revert optimistic update
+      fetchDeals();
+    }
 
     setActiveDeal(null);
   };
@@ -141,30 +151,49 @@ export function DealsPipeline() {
     return getDealsByStage(stageId).reduce((sum, deal) => sum + deal.value, 0);
   };
 
+  if (loading) {
+    return <div className="text-center py-8">Chargement...</div>;
+  }
+
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {stages.map((stage) => (
-          <PipelineColumn
-            key={stage.id}
-            stage={stage}
-            deals={getDealsByStage(stage.id)}
-            totalValue={getTotalValueByStage(stage.id)}
-          />
-        ))}
+    <>
+      <div className="mb-4 flex justify-end">
+        <Button onClick={() => setDialogOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Nouvelle Opportunité
+        </Button>
       </div>
 
-      <DragOverlay>
-        {activeDeal ? (
-          <div className="rotate-3 opacity-90">
-            <DealCard deal={activeDeal} isDragging />
-          </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {stages.map((stage) => (
+            <PipelineColumn
+              key={stage.id}
+              stage={stage}
+              deals={getDealsByStage(stage.id)}
+              totalValue={getTotalValueByStage(stage.id)}
+            />
+          ))}
+        </div>
+
+        <DragOverlay>
+          {activeDeal ? (
+            <div className="rotate-3 opacity-90">
+              <DealCard deal={activeDeal} isDragging />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      <DealDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={fetchDeals}
+      />
+    </>
   );
 }
