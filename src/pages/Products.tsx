@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Package, DollarSign, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Package, DollarSign, Edit, Trash2, Eye } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { ProductDialog } from "@/components/ProductDialog";
 import {
   AlertDialog,
@@ -31,6 +32,7 @@ interface Product {
 
 const Products = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -218,10 +220,16 @@ const Products = () => {
                     <Button 
                       className="flex-1" 
                       variant="outline"
+                      onClick={() => navigate(`/products/${product.id}`)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Voir
+                    </Button>
+                    <Button 
+                      variant="outline"
                       onClick={() => handleEditProduct(product)}
                     >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Modifier
+                      <Edit className="h-4 w-4" />
                     </Button>
                     <Button 
                       variant="outline"

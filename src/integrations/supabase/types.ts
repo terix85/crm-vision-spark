@@ -89,6 +89,66 @@ export type Database = {
         }
         Relationships: []
       }
+      deals: {
+        Row: {
+          close_date: string | null
+          company_id: string | null
+          contact: string | null
+          created_at: string | null
+          id: string
+          probability: number | null
+          product_id: string | null
+          stage: string
+          title: string
+          updated_at: string | null
+          user_id: string
+          value: number
+        }
+        Insert: {
+          close_date?: string | null
+          company_id?: string | null
+          contact?: string | null
+          created_at?: string | null
+          id?: string
+          probability?: number | null
+          product_id?: string | null
+          stage?: string
+          title: string
+          updated_at?: string | null
+          user_id: string
+          value?: number
+        }
+        Update: {
+          close_date?: string | null
+          company_id?: string | null
+          contact?: string | null
+          created_at?: string | null
+          id?: string
+          probability?: number | null
+          product_id?: string | null
+          stage?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deals_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           created_at: string
@@ -196,6 +256,57 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      sales: {
+        Row: {
+          created_at: string | null
+          customer_id: string | null
+          id: string
+          product_id: string
+          quantity: number
+          sale_date: string
+          total_price: number
+          unit_price: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          product_id: string
+          quantity?: number
+          sale_date?: string
+          total_price: number
+          unit_price: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_id?: string | null
+          id?: string
+          product_id?: string
+          quantity?: number
+          sale_date?: string
+          total_price?: number
+          unit_price?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
