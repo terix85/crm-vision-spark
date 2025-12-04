@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Building2, FileText, Settings, TrendingUp, Package, Sparkles, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Users, Building2, FileText, Settings, TrendingUp, Package, Sparkles, BarChart3, CheckSquare, Table } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -17,6 +17,8 @@ import {
 const navigationItems = [
   { title: "Vue d'ensemble", url: "/crm", icon: LayoutDashboard },
   { title: "Assistant IA", url: "/ai-assistant", icon: Sparkles },
+  { title: "Tâches", url: "/tasks", icon: CheckSquare },
+  { title: "Tableur", url: "/spreadsheet", icon: Table },
   { title: "Clients", url: "/companies", icon: Building2 },
   { title: "Opportunités", url: "/deals", icon: TrendingUp },
   { title: "Produits", url: "/products", icon: Package },
