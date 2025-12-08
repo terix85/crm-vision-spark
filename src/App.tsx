@@ -24,6 +24,7 @@ import Privacy from "./pages/Privacy";
 import Tasks from "./pages/Tasks";
 import Spreadsheet from "./pages/Spreadsheet";
 import DiagramEditorPage from "./pages/DiagramEditorPage";
+import Pricing from "./pages/Pricing";
 import NotFound from "./pages/NotFound";
 import { WhatsAppWidget } from "./components/WhatsAppWidget";
 
@@ -45,6 +46,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/privacy" element={<Privacy />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/products" element={<Products />} />
             <Route path="/products/:id" element={<ProductDetails />} />
             
